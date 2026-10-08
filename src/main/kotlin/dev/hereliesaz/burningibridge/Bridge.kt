@@ -97,7 +97,8 @@ class Bridge(private val jobs: Jobs, private val out: (String) -> Unit) {
     fun runRemote(name: String, script: String) {
         jobs.submit(name) { dir ->
             Files.writeString(dir.resolve("script.sh"), "#!/bin/sh\n" + script + "\n")
-            session().use { ssh ->
+            val ssh = session()
+            try {
                 val command = ssh.openChannel("exec") as ChannelExec
                 command.setCommand("/bin/sh -s")
                 command.setInputStream(ByteArrayInputStream((script + "\n").toByteArray()))
@@ -116,7 +117,7 @@ class Bridge(private val jobs: Jobs, private val out: (String) -> Unit) {
                 command.disconnect()
                 out("Remote exit code: " + exit + "; " + logfile)
                 if (exit != 0) error("Remote command failed; inspect " + logfile)
-            }
+            } finally { ssh.disconnect() }
         }
     }
 
@@ -140,7 +141,7 @@ class Bridge(private val jobs: Jobs, private val out: (String) -> Unit) {
                     }
                     Files.writeString(dir.resolve("files.txt"), entries.joinToString("\n") { it.filename } + "\n")
                 } finally { sftp.disconnect() }
-            }
+            } finally { ssh.disconnect() }
             out("Fetched dyld files: " + target)
             out("Do not publish raw caches or device identifiers from logs.")
         }
