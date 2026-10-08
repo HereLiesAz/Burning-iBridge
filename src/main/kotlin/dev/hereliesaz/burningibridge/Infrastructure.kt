@@ -176,8 +176,12 @@ class Installer(private val message: (String) -> Unit, private val jobs: Jobs) {
     }
 
     fun install(tool: String) {
-        jobs.submit("install-" + tool) { dir ->
-            val asset = releaseAsset(tool)
+        jobs.submit("install-" + tool) { dir -> ensureTool(tool, dir) }
+    }
+
+    fun ensureTool(tool: String, dir: Path) {
+        if (Host.find(tool) != null) return
+        val asset = releaseAsset(tool)
             message("Downloading verified " + asset.name)
             val archive = dir.resolve(asset.name)
             val response = http.send(
@@ -211,7 +215,6 @@ class Installer(private val message: (String) -> Unit, private val jobs: Jobs) {
                 Files.move(temporary, executable, StandardCopyOption.REPLACE_EXISTING)
                 message("Installed: " + executable)
             }
-        }
     }
 
     private fun installMacDmg(dmg: Path, folder: Path) {
