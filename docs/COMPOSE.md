@@ -11,9 +11,11 @@
 
 ## Run and package
 
-Use JDK **21** and Gradle compatible with Kotlin 2.4.20. In the repository root:
+Use JDK **21**. The included `launch.sh` bootstraps Gradle 9.7.1 with a verified SHA-256 and starts the Compose GUI, or you can use an existing Gradle installation. In the repository root:
 
 ```sh
+bash launch.sh
+# Or, with an installed Gradle:
 gradle run
 gradle test
 gradle packageDistributionForCurrentOS
