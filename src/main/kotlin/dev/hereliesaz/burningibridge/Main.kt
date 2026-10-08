@@ -67,6 +67,9 @@ fun BurningIBridgeApp() {
     }
     val jobs = remember { Jobs(log) }
     val bridge = remember { Bridge(jobs, log) }
+    DisposableEffect(Unit) {
+        onDispose { bridge.stopProxy(); jobs.executor.shutdownNow() }
+    }
     val installer = remember { Installer(log, jobs) }
     var tab by remember { mutableIntStateOf(0) }
     var port by remember { mutableStateOf("2233") }
@@ -203,8 +206,9 @@ fun BurningIBridgeApp() {
                                 log("Saved: " + dir.resolve("experiment.sh"))
                             } }
                             Action("Run queue on T2", enabled = queue.isNotEmpty()) { run {
-                                val script = queue.joinToString("\n") { "# " + it.first + "\n" + it.second }
-                                bridge.runRemote("experiment", script)
+                                queue.forEachIndexed { index, step ->
+                                    bridge.runRemote("experiment-" + (index + 1) + "-" + step.first, step.second)
+                                }
                             } }
                         }
                     }
