@@ -2,17 +2,23 @@
 
 Tested research hardware: Intel T2 MacBook Air A1932, MacBookAir8,1 (iBridge2,8).
 
-## Burning-iBridge Linux / macOS GUI
+## Burning-iBridge — Compose Desktop (Linux / macOS)
 
-**[Launchable Python GUI](burning_ibridge_gui.py)** · [GUI setup and operator guide](docs/GUI.md)
+**[Compose GUI source](src/main/kotlin/dev/hereliesaz/burningibridge/Main.kt)** · **[Setup and operator guide](docs/COMPOSE.md)** · [bridgeOS API reference](docs/bridgeos-api-reference.md)
 
-The GUI currently integrates installed command-line tools: palera1n --cli, ipsw dyld image/symbol inspection, iproxy, SSH/SCP, irecovery, idevice_id, and idevicerestore help; plus a script builder, USB/DFU detection, timestamped logs, and ISO checksum/OS preparation.
+The main application is a **Kotlin Compose Desktop GUI** targeting Linux and macOS with a JVM/Kotlin orchestration backend. The previous [Tkinter Python preview](burning_ibridge_gui.py) is preserved for reference, but is no longer the primary UI.
 
-Linux / macOS prerequisites: Python 3.10+ with Tkinter; a system Terminal and the relevant external CLI programs. Open the file in a desktop Python environment or run:
+Features currently implemented in source:
 
-    python3 burning_ibridge_gui.py
+- Runtime tool manager: downloads platform/architecture-specific **palera1n v3 CLI** and **ipsw** releases from upstream, verifies SHA-256, and installs them into a per-user tools directory.
+- Installer for USB/SSH dependencies through Ubuntu/Debian `apt` + `pkexec` or macOS Homebrew, with explicit user authorization.
+- Graphical DFU/USB detection, interactive palera1n launch, managed `iproxy`, SSH host-key fingerprint inspection/trust, password-authenticated SSH.
+- Experiment script queue, custom root commands, per-command logs, dyld cache/subcache retrieval via SFTP, and symbol discovery through `ipsw dyld`.
+- OS image checksum and an installation preparation checklist.
 
-**Current limitations:** Early preview, not yet hardware-tested end-to-end through the new GUI. Third-party binaries aren't bundled. Activation Lock remains in force. No verified EFI write or automatic alternative OS installer is implemented. For technical evidence, see the [living API reference](docs/bridgeos-api-reference.md).
+**To run from source:** JDK 21 and Gradle compatible with Kotlin 2.4.20, then `gradle run`. To package: `gradle packageDistributionForCurrentOS`. See [docs/COMPOSE.md](docs/COMPOSE.md) for prerequisites, supported tools and the operator workflow.
+
+**Status:** First implementation committed; **native packages, Gradle tests and live GUI hardware integration have not yet been verified**. Third-party binaries are downloaded **at runtime**, not included in the Git repository. Host package setup requires administrator approval. Alternative OS installation, Intel Secure Boot policy writes, and Activation Lock removal are **not implemented**.
 
 
 
