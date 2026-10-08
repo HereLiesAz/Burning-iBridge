@@ -32,6 +32,8 @@ class Bridge(private val jobs: Jobs, private val out: (String) -> Unit) {
     @Volatile private var proxy: Process? = null
     @Volatile var sshPort = 2233
     @Volatile var password: String = ""
+    @Volatile var installHelpers: ((Path) -> Unit)? = null
+    @Volatile var installIpsw: ((Path) -> Unit)? = null
     @Volatile var linkState: String = "DISCONNECTED"
         private set
     @Volatile var controlState: String = "OFFLINE"
@@ -89,21 +91,25 @@ class Bridge(private val jobs: Jobs, private val out: (String) -> Unit) {
         }
     }
 
-    fun connectManaged(ensureTools: (Path) -> Unit) {
-        jobs.submit("connect-bridge") { dir ->
-            status("PREPARING")
-            if (Host.find("iproxy") == null || Host.find("ssh-keyscan") == null) {
-                out("SSH: provisioning missing host helpers")
-                ensureTools(dir)
-            }
-            status("STARTING_TUNNEL")
-            startProxy()
-            val deadline = System.currentTimeMillis() + 15_000
-            while (System.currentTimeMillis() < deadline && !portOpen()) Thread.sleep(250)
-            check(portOpen()) { "SSH tunnel did not open: verify T2 USB state" }
-            status("AUTHENTICATING")
-            connectBoth()
+    @Synchronized private fun ensureReady(dir: Path, helper: ((Path) -> Unit)? = installHelpers) {
+        if (linkState == "READY" && control?.isConnected == true && monitor?.isConnected == true) return
+        status("PREPARING")
+        if (Host.find("iproxy") == null || Host.find("ssh-keyscan") == null) {
+            out("SSH: provisioning required helpers before connecting")
+            (helper ?: error("USB helper provisioner is not configured")).invoke(dir)
         }
+        status("STARTING_TUNNEL")
+        startProxy()
+        val deadline = System.currentTimeMillis() + 15_000
+        while (System.currentTimeMillis() < deadline && !portOpen()) Thread.sleep(250)
+        check(portOpen()) { "SSH tunnel did not open: verify T2 USB state" }
+        status("AUTHENTICATING")
+        connectBoth()
+        check(linkState == "READY") { "Host-key approval required in Connection panel" }
+    }
+
+    fun connectManaged(ensureTools: (Path) -> Unit) {
+        jobs.submit("connect-bridge") { dir -> ensureReady(dir, ensureTools) }
     }
 
     fun refreshConnectionState() {
@@ -211,6 +217,7 @@ class Bridge(private val jobs: Jobs, private val out: (String) -> Unit) {
     fun runRemote(name: String, script: String) {
         jobs.submit(name) { dir ->
             Files.writeString(dir.resolve("script.sh"), "#!/bin/sh\n" + script + "\n")
+            ensureReady(dir)
             val ssh = controlSession()
             try {
                 val command = ssh.openChannel("exec") as ChannelExec
@@ -245,6 +252,7 @@ class Bridge(private val jobs: Jobs, private val out: (String) -> Unit) {
     fun fetchDyld() {
         jobs.submit("fetch-dyld") { dir ->
             val target = Files.createDirectories(dir.resolve("dyld"))
+            ensureReady(dir)
             val ssh = researchSession()
             try {
                 out("SSH: research SFTP channel opened")
@@ -273,8 +281,12 @@ class Bridge(private val jobs: Jobs, private val out: (String) -> Unit) {
     fun analyzeDyld(cache: String) {
         val file = Path.of(cache).toAbsolutePath().normalize()
         require(Files.isRegularFile(file)) { "Select the locally downloaded dyld_shared_cache_arm64 file" }
-        val ipsw = Host.find("ipsw") ?: error("Install ipsw in Tools first")
         jobs.submit("ipsw-dyld") { dir ->
+            if (Host.find("ipsw") == null) {
+                out("TOOLS: downloading verified ipsw before analysis")
+                (installIpsw ?: error("ipsw tool provisioner is not configured")).invoke(dir)
+            }
+            val ipsw = Host.find("ipsw") ?: error("ipsw installation did not complete")
             val cmds = linkedMapOf(
                 "01-image.log" to listOf(ipsw.toString(), "dyld", "image", file.toString(), "libMacEFIHostInterface", "-V"),
                 "02-symbols.log" to listOf(ipsw.toString(), "dyld", "macho", file.toString(), "libMacEFIHostInterface", "--symbols"),
@@ -287,6 +299,13 @@ class Bridge(private val jobs: Jobs, private val out: (String) -> Unit) {
             }
             out("Analysis logs: " + dir)
             out("Names/symbols are evidence only; they do not establish write authorization.")
+        }
+    }
+
+    fun launchPalera1nManaged(ensureTool: (Path) -> Unit) {
+        jobs.submit("jailbreak-launcher") { dir ->
+            if (Host.find("palera1n") == null) ensureTool(dir)
+            launchPalera1n()
         }
     }
 
