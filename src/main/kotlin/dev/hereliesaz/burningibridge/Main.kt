@@ -26,7 +26,7 @@ import javax.swing.JFileChooser
 private val tabs = listOf("Tools & setup", "Jailbreak & SSH", "Scripts", "dyld research", "OS planning")
 
 @Composable
-private fun Action(label: String, onClick: () -> Unit, enabled: Boolean = true) {
+private fun Action(label: String, enabled: Boolean = true, onClick: () -> Unit) {
     Button(onClick = onClick, enabled = enabled, modifier = Modifier.padding(end = 8.dp, bottom = 8.dp)) {
         Text(label)
     }
