@@ -16,7 +16,7 @@ Features currently implemented in source:
 - Experiment script queue, custom root commands, per-command logs, dyld cache/subcache retrieval via SFTP, and symbol discovery through `ipsw dyld`.
 - OS image checksum and an installation preparation checklist.
 
-**To run from source:** JDK 21 and Gradle compatible with Kotlin 2.4.20, then `gradle run`. To package: `gradle packageDistributionForCurrentOS`. See [docs/COMPOSE.md](docs/COMPOSE.md) for prerequisites, supported tools and the operator workflow.
+**To run from source:** JDK 21, then `bash launch.sh` (downloads a SHA-256-verified Gradle distribution automatically) or `gradle run` if Gradle is already installed. To package: `gradle packageDistributionForCurrentOS`. See [docs/COMPOSE.md](docs/COMPOSE.md) for prerequisites, supported tools and the operator workflow.
 
 **Status:** First implementation committed; **native packages, Gradle tests and live GUI hardware integration have not yet been verified**. Third-party binaries are downloaded **at runtime**, not included in the Git repository. Host package setup requires administrator approval. Alternative OS installation, Intel Secure Boot policy writes, and Activation Lock removal are **not implemented**.
 
