@@ -238,19 +238,25 @@ class Installer(private val message: (String) -> Unit, private val jobs: Jobs) {
     }
 
     fun installSystemHelpers() {
-        jobs.submit("usb-helpers") { dir ->
-            when {
-                Host.isLinux -> {
-                    val pkexec = Host.find("pkexec") ?: error("pkexec is required for graphical package installation. Install polkit or use your distribution's package manager.")
-                    jobs.run(listOf(pkexec.toString(), "apt-get", "install", "-y",
-                        "usbmuxd", "libusbmuxd-tools", "libimobiledevice-utils", "irecovery", "idevicerestore", "usbutils", "openssh-client"), dir)
-                }
-                Host.isMac -> {
-                    val brew = Host.find("brew") ?: error("Homebrew is not installed; see https://brew.sh")
-                    jobs.run(listOf(brew.toString(), "install", "libusbmuxd", "libimobiledevice", "libirecovery", "idevicerestore"), dir)
-                }
-                else -> error("Unsupported operating system")
+        jobs.submit("usb-helpers") { dir -> ensureSystemHelpers(dir) }
+    }
+
+    /** Called inside a larger connect workflow so setup completes before tunnel creation. */
+    fun ensureSystemHelpers(dir: Path) {
+        if (Host.find("iproxy") != null && Host.find("ssh-keyscan") != null) return
+        when {
+            Host.isLinux -> {
+                val pkexec = Host.find("pkexec") ?: error("PolicyKit (pkexec) is required for automatic USB helper installation")
+                jobs.run(listOf(pkexec.toString(), "apt-get", "install", "-y",
+                    "usbmuxd", "libusbmuxd-tools", "libimobiledevice-utils",
+                    "libirecovery-1.0-3", "usbutils", "openssh-client"), dir)
             }
+            Host.isMac -> {
+                val brew = Host.find("brew") ?: error("Install Homebrew to provision missing USB helpers")
+                jobs.run(listOf(brew.toString(), "install", "libusbmuxd", "libimobiledevice", "libirecovery"), dir)
+            }
+            else -> error("Unsupported operating system")
         }
+        check(Host.find("iproxy") != null) { "USB helpers installed but iproxy is still missing" }
     }
 }
