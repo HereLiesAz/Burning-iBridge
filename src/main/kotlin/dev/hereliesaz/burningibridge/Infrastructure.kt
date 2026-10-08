@@ -43,7 +43,8 @@ object Host {
             "palera1n" -> {
                 val app = tools.resolve("palera1n.app/Contents/MacOS")
                 if (Files.isDirectory(app)) Files.list(app).use { stream ->
-                    stream.filter { Files.isRegularFile(it) && Files.isExecutable(it) && it.fileName.toString().contains("palera1n", true) }
+                    stream.filter { Files.isRegularFile(it) && Files.isExecutable(it) }
+                        .sorted(compareByDescending<Path> { it.fileName.toString().contains("palera1n", true) })
                         .findFirst().orElse(null)
                 } else null
             }
@@ -223,7 +224,7 @@ class Installer(private val message: (String) -> Unit, private val jobs: Jobs) {
                 Host.isLinux -> {
                     val pkexec = Host.find("pkexec") ?: error("pkexec is required for graphical package installation. Install polkit or use your distribution's package manager.")
                     jobs.run(listOf(pkexec.toString(), "apt-get", "install", "-y",
-                        "usbmuxd", "libusbmuxd-tools", "libimobiledevice-utils", "usbutils", "openssh-client"), dir)
+                        "usbmuxd", "libusbmuxd-tools", "libimobiledevice-utils", "irecovery", "idevicerestore", "usbutils", "openssh-client"), dir)
                 }
                 Host.isMac -> {
                     val brew = Host.find("brew") ?: error("Homebrew is not installed; see https://brew.sh")
