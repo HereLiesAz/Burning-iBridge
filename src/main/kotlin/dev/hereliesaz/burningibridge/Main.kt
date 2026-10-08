@@ -201,6 +201,8 @@ fun BurningIBridgeApp(window: AwtWindow) {
         )
     }
     DisposableEffect(jobs, bridge, shelf) {
+        bridge.installHelpers = { dir -> installer.ensureSystemHelpers(dir) }
+        bridge.installIpsw = { dir -> installer.ensureTool("ipsw", dir) }
         jobs.onJobsChanged = { updated -> EventQueue.invokeLater { jobStates = updated } }
         onDispose { bridge.stopProxy(); shelf.close(); jobs.executor.shutdownNow() }
     }
@@ -396,7 +398,7 @@ fun BurningIBridgeApp(window: AwtWindow) {
                                 }
                                 Pane("Recovery / jailbreak", "Interactive palera1n session. Jailbreaking affects bridgeOS, not Activation Lock or host Secure Boot policy.") {
                                     Row {
-                                        Primary("Launch palera1n") { act { bridge.launchPalera1n() } }
+                                        Primary("Launch palera1n") { act { bridge.launchPalera1nManaged { dir -> installer.ensureTool("palera1n", dir) } } }
                                         Secondary("Install missing tools") { page = 4 }
                                     }
                                 }
@@ -481,7 +483,7 @@ fun BurningIBridgeApp(window: AwtWindow) {
                                 SectionHeader(page, "Static dyld analysis and read-only interface investigation.")
                                 Pane("dyld shared cache", "This action ensures SSH is connected before fetching caches, and installs ipsw when absent.") {
                                     Row {
-                                        Primary("Fetch dyld caches") { act { if (bridge.linkState != "READY") connect(); bridge.fetchDyld() } }
+                                        Primary("Fetch dyld caches") { act { bridge.fetchDyld() } }
                                         Secondary("Browse local cache") { chooseFile()?.let { cache = it.toString() } }
                                     }
                                     Field(cache, { cache = it }, "LOCAL DYLD CACHE")
