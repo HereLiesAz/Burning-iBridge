@@ -1,5 +1,19 @@
 # Burning-iBridge desktop — Compose Multiplatform GUI
 
+## Desktop UX overhaul (0.1.3)
+
+The primary interface was rebuilt as an always-visible navigation rail, a focused central workspace and a filterable right-hand telemetry pane. The original tab-based interface and non-selectable text console are superseded. [Full design and interaction contract](UX.md).
+
+- **USB/DFU indication:** live USB probe every three seconds; `05ac:1227` explicitly shown as DFU and `05ac:8600` as bridgeOS. The palera1n button stays disabled until DFU is detected, and a fresh check runs immediately before launch. The 2018 MacBook Air's physical-key sequence is displayed only when necessary.
+- **palera1n progress:** terminal session marker, live logs, elapsed duration, prolonged silence warning, failure/exit detection, and a best-effort Stop action.
+- **One-step SSH:** Connect bootstraps needed `iproxy` and SSH helpers, starts/reuses the tunnel, opens two independent SSH sessions, and stops only for real errors or a required host-key approval.
+- **Activity:** queued/running/success/error states on every screen, per-task log folders and a focused SSH log filter.
+- **Logs:** selectable text, Copy, text/channel/severity filters, and an inspectable ZIP export containing recent logs with best-effort redaction.
+- **Scripts:** persistent watched directory, native explorer drop import, filtered list, editor that saves into the watched folder, read-only presets and explicit pre-execution confirmation.
+- **Automatic prerequisites:** remote experiments and dyld download connect first; ipsw and palera1n install if missing. Hardware DFU entry and host-key decisions remain physical/trust boundaries that cannot be auto-accepted.
+
+This release is **not yet verified against a live T2**. Do not treat a passing build as proof that file drops and device interaction work on each host.
+
 ## Architecture
 
 **Compose Desktop / Kotlin JVM** is the active user interface for Linux and macOS. Orchestration is Kotlin/JVM rather than Python: it launches external tools, manages an `iproxy` process, downloads verified releases, collects logs, and uses JSch for password-authenticated SSH/SFTP with explicit host-key trust. Python scripts can still be run through the experiment builder; the earlier Tkinter entrypoint is retained for reference, but is not the supported front end.
