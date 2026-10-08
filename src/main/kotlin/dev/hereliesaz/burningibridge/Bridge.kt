@@ -124,7 +124,8 @@ class Bridge(private val jobs: Jobs, private val out: (String) -> Unit) {
     fun fetchDyld() {
         jobs.submit("fetch-dyld") { dir ->
             val target = Files.createDirectories(dir.resolve("dyld"))
-            session().use { ssh ->
+            val ssh = session()
+            try {
                 val sftp = ssh.openChannel("sftp") as ChannelSftp
                 sftp.connect(15000)
                 try {
