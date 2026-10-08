@@ -49,7 +49,7 @@ Presence of a kernel class or a user client is **not** evidence of an unrestrict
 | `/usr/libexec/multiversed` | Running at PID 42; connected to `MacEFIManagerUserClient`; Mach-O arm64 | Runtime confirmed |
 | `/usr/lib/libMacEFIHostInterface.dylib` | Referenced by `powerchimed`; not a regular on-disk file in tested image | String observed; library loading unverified |
 | `/usr/local/lib/libMacEFIHostInterface.dylib` | Alternate path referenced by `powerchimed`; not a regular on-disk file | String observed; library loading unverified |
-| `/System/Library/Caches/com.apple.dyld/dyld_shared_cache_arm64*` | Main cache plus subcaches present | Runtime confirmed; EFI library membership unverified |
+| `/System/Library/Caches/com.apple.dyld/dyld_shared_cache_arm64*` | Main cache plus subcaches present; targeted name matches in cache | Runtime confirmed; Mach-O image membership and exported symbols not yet verified |
 
 The absence of a separate dylib does not establish that its code is absent; it may be in a dyld shared cache, or a dormant fallback.
 
@@ -69,6 +69,25 @@ These are **strings found in the `powerchimed` binary**. They are not confirmed 
 | `IOConnectCallStructMethod` | Referenced by binary | String observed; standard IOKit call |
 
 Additional names found: `HNvramHostInterface`, `macEFIConnection`, `nvramHost`, `setMacEFIConnection:` and `setNvramHost:`. These suggest a read-side NVRAM host interface used by `powerchimed`; the available strings **do not establish a set-variable function**. The basic `multiversed` strings scan gave no comparable EFI-specific matches.
+
+## dyld shared-cache symbol-name census (2026-10-08)
+
+**Observation, not an exported-API proof.** A corrected read-only probe scanned nine regular ARM64 dyld-cache files completely in 8 MiB chunks. The first run was invalid because bridgeOS lacks `awk`; the corrected run reported SSH status `0`, **9 scanned / 0 skipped**, with per-cache `SCAN_COMPLETE` records.
+
+| Identifier/string | Found in | Confidence / limitation |
+| --- | --- | --- |
+| `libMacEFIHostInterface.dylib` | `dyld_shared_cache_arm64` main file, `.03`, `.07.dyldlinkedit` | Cache contains the library name; precise Mach-O membership and loadability remain unverified |
+| `MacEFIManager` | Main, `.03`, `.07.dyldlinkedit`, `.symbols` | Name corroborates runtime IOKit service; text occurrences alone reveal no method selectors |
+| `createNvramHostInterface` | `.07.dyldlinkedit` | Symbol-like string; ABI/export unresolved |
+| `destroyNvramHostInterface` | `.07.dyldlinkedit` | Symbol-like string; ABI/export unresolved |
+| `getNVRAMVariable` | `.07.dyldlinkedit`, `.symbols` | Previously observed in `powerchimed`; no validated call |
+| **`setNVRAMVariable`** | `.03`, `.07.dyldlinkedit`, `.symbols` | **New candidate** write-side API name; owning image, signature, linkage, authorization and callable behavior **not established** |
+
+`AppleSecureBootPolicy` and `StartupManagerPolicy` were search terms but did **not** appear as matches in these cache files. This does not contradict their runtime observation under `MacEFIManager.Variables`; they may reside elsewhere.
+
+A `setNVRAMVariable` name in cache text **does not prove** it is exported by `libMacEFIHostInterface`, usable by root, able to modify host EFI policy, or capable of bypassing Secure Enclave authorization. No write call was made.
+
+**Evidence:** corrected probe `00_summary(4).txt` and `04_efi_cache_hits(1).log` (held outside this public repository); `iBridge2,8`, Darwin `25.6.0`. No private device identifiers or raw firmware images published.
 
 ## GUID-qualified EFI variables (data, not API functions)
 
@@ -115,8 +134,8 @@ Linux USB observations: `05ac:1227` was DFU mode; `05ac:8600` was a running iBri
 
 ## Open questions / work queue
 
-1. Search dyld cache images for `libMacEFIHostInterface`; verify any extracted symbols.
-2. Confirm ABI, ownership, return values, and invocation behavior of `createNvramHostInterface` / `getNVRAMVariable` / `destroyNvramHostInterface`.
+1. Identify the dyld image owning `setNVRAMVariable`; inspect the `libMacEFIHostInterface` image and verify exported symbol status, ABI, and authorization requirements.
+2. Confirm ABI, ownership, return values, and invocation behavior of `createNvramHostInterface` / `getNVRAMVariable` / `destroyNvramHostInterface` / candidate `setNVRAMVariable`.
 3. Identify read-only `MacEFIManagerUserClient` selectors actually used by the observed services.
 4. Determine whether a policy write interface exists and which authorizations it requires. **Not established.** Root access does not imply SEP authorization.
 5. Verify any EFI value-to-policy interpretation against versioned sources before recording it as fact.
