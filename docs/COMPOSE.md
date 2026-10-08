@@ -74,6 +74,22 @@ Logs, generated scripts, and downloaded diagnostic archives are in `~/.burning-i
 
 If SSH resets, use the USB state detector: `05ac:1227` indicates DFU and the jailbreak needs recovery; `05ac:8600` confirms bridgeOS running but not necessarily SSH. **Do not run idevicerestore as a connection-repair step**.
 
+## Linux package compatibility and installation troubleshooting
+
+Release `0.1.0.25` was built on an Ubuntu 24.04 runner; its `.deb` declares dependencies on `libasound2t64` and `libpng16-16t64`, which cannot be satisfied by Ubuntu 22.04's ordinary repositories. It also had a static native package version of `1.1.0`, preventing reliable build-to-build upgrade ordering. The `0.1.1` patch release changes the Linux build runner to Ubuntu 22.04 and gives every native package a unique `1.1.<build>` installer version. It also publishes a Linux portable `.tar.gz` application directory alongside the `.deb`.
+
+Install the appropriate **latest** Linux package with APT so the package manager resolves dependencies and reports any real errors:
+
+```sh
+sudo apt install ./Burning-iBridge-*-linux-amd64.deb
+```
+
+If it fails, copy the exact apt output; to inspect dependencies without installing, use `dpkg-deb -f Burning-iBridge-*-linux-amd64.deb Depends`. To verify the installed version: `dpkg-query -W burning-ibridge`. On an older operating system with incompatible libraries, use an appropriate compatible environment; do not force package installation with `--force-depends`.
+
+For the portable archive, extract it into a user-writable directory, then launch the executable in the extracted `bin/` subdirectory. It includes its own JVM runtime but still requires compatible Linux system libraries.
+
+On macOS, mount the appropriate `.dmg` (Intel versus Apple Silicon), drag the app into Applications, and use **System Settings → Privacy & Security → Open Anyway** if the unsigned app is blocked. Do not disable Gatekeeper globally.
+
 ## Remaining integration work
 
 - Run Gradle build/tests and exercise the native Linux and macOS bundles on both architectures.
