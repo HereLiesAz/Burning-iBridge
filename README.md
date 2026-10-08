@@ -1,6 +1,8 @@
-# HereLiesAz Repository Starter
+# Burning iBridge
 
-General-purpose starter for new HereLiesAz repositories.
+Tested on Macbook Air T2 Intel 2019, model A1932.
+
+---------
 
 This template deliberately contains **no executable GitHub Actions implementation**. Repository automation is selected from the central `HereLiesAz/workflows` catalog.
 
