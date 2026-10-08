@@ -251,12 +251,11 @@ class Installer(private val message: (String) -> Unit, private val jobs: Jobs) {
             Host.isLinux -> {
                 val pkexec = Host.find("pkexec") ?: error("PolicyKit (pkexec) is required for automatic USB helper installation")
                 jobs.run(listOf(pkexec.toString(), "apt-get", "install", "-y",
-                    "usbmuxd", "libusbmuxd-tools", "libimobiledevice-utils",
-                    "libirecovery-1.0-3", "usbutils", "openssh-client"), dir)
+                    "usbmuxd", "libusbmuxd-tools", "usbutils", "openssh-client"), dir)
             }
             Host.isMac -> {
                 val brew = Host.find("brew") ?: error("Install Homebrew to provision missing USB helpers")
-                jobs.run(listOf(brew.toString(), "install", "libusbmuxd", "libimobiledevice", "libirecovery"), dir)
+                jobs.run(listOf(brew.toString(), "install", "libusbmuxd", "libimobiledevice"), dir)
             }
             else -> error("Unsupported operating system")
         }
