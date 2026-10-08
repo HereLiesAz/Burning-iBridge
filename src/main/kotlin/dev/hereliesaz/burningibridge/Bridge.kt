@@ -135,7 +135,7 @@ class Bridge(private val jobs: Jobs, private val out: (String) -> Unit) {
                     check(entries.isNotEmpty()) { "No dyld cache files on T2" }
                     entries.forEach { entry ->
                         val length = entry.attrs.size
-                        require(length in 1..1_073_741_824L) { "Unexpected cache size for " + entry.filename }
+                        require(length in 1L..1_073_741_824L) { "Unexpected cache size for " + entry.filename }
                         out("SFTP: " + entry.filename + " (" + length + " bytes)")
                         sftp.get(remote + entry.filename, target.resolve(entry.filename).toString())
                         check(Files.size(target.resolve(entry.filename)) == length) { "Incomplete download " + entry.filename }
