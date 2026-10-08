@@ -359,7 +359,7 @@ class Bridge(private val jobs: Jobs, private val out: (String) -> Unit) {
         val args = listOf(exe.toString(), "--cli", "-f", "-d").joinToString(" ") { quote(it) }
         val dollar = '$'
         val contents = "#!/usr/bin/env bash\nset -o pipefail\n" +
-            "echo " + quote(dollar + dollar) + " > " + quote(pid.toString()) + "\n" +
+            "echo " + dollar + dollar + " > " + quote(pid.toString()) + "\n" +
             "printf '%s\\n' 'Burning-iBridge: DFU was detected before launching palera1n' | tee " + quote(log.toString()) + "\n" +
             "sudo " + args + " 2>&1 | tee -a " + quote(log.toString()) + "\n" +
             "rc=" + dollar + "{PIPESTATUS[0]}\n" +
