@@ -51,6 +51,10 @@ class LogBook(private val changed: () -> Unit = {}) {
 
     companion object {
         fun inferChannel(line: String): String = when {
+            line.startsWith("DEVICE:", true) -> "DEVICE"
+            line.startsWith("SSH:", true) -> "SSH"
+            line.startsWith("LINK:", true) -> "LINK"
+            line.startsWith("TOOLS:", true) -> "TOOLS"
             line.contains("ssh", true) || line.contains("host key", true) || line.contains("SFTP", true) ||
                 line.contains("remote", true) || line.contains("127.0.0.1", true) -> "SSH"
             line.contains("iproxy", true) || line.contains("tunnel", true) || line.contains("USB", true) -> "LINK"
