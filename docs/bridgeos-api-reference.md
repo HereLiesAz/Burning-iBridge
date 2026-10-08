@@ -132,6 +132,12 @@ nvram -p
 
 Linux USB observations: `05ac:1227` was DFU mode; `05ac:8600` was a running iBridge. The T2 temporarily returned to DFU during experimentation and was subsequently booted into bridgeOS again. This alone is not evidence of a permanent brick.
 
+## Burning-iBridge GUI research runner
+
+[Cross-platform GUI](../burning_ibridge_gui.py) and [operator guide](GUI.md) added 2026-10-08. It provides separate CLI controls for palera1n, SSH/iproxy, USB diagnostics, script generation and ipsw dyld queries. It runs the dyld image/symbol/address probes in sequence with separate saved logs. The GUI is research orchestration, **not** a discovered T2 firmware API, nor evidence that setNVRAMVariable can be invoked.
+
+**Next experiment:** run the GUI's ipsw inspection on a complete local copy of all dyld cache/subcache files, then add verified image ownership and export details below. No actual dyld extraction or ABI verification has been performed in this conversation.
+
 ## Open questions / work queue
 
 1. Identify the dyld image owning `setNVRAMVariable`; inspect the `libMacEFIHostInterface` image and verify exported symbol status, ABI, and authorization requirements.
