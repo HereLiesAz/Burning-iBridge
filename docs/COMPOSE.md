@@ -86,7 +86,7 @@ sudo apt install ./Burning-iBridge-*-linux-amd64.deb
 
 If it fails, copy the exact apt output; to inspect dependencies without installing, use `dpkg-deb -f Burning-iBridge-*-linux-amd64.deb Depends`. To verify the installed version: `dpkg-query -W burning-ibridge`. On an older operating system with incompatible libraries, use an appropriate compatible environment; do not force package installation with `--force-depends`.
 
-For the portable archive, extract it into a user-writable directory, then launch the executable in the extracted `bin/` subdirectory. It includes its own JVM runtime but still requires compatible Linux system libraries.
+For the portable archive, extract it into a user-writable directory; the distributable normally contains `Burning-iBridge/bin/Burning-iBridge` (alongside its bundled runtime and libraries). Run that executable from the extracted directory. It includes its own JVM runtime but still requires compatible Linux system libraries.
 
 On macOS, mount the appropriate `.dmg` (Intel versus Apple Silicon), drag the app into Applications, and use **System Settings → Privacy & Security → Open Anyway** if the unsigned app is blocked. Do not disable Gatekeeper globally.
 
