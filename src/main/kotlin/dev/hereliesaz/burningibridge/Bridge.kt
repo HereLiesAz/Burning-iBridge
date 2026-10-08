@@ -172,10 +172,12 @@ class Bridge(private val jobs: Jobs, private val out: (String) -> Unit) {
         val logfile = dir.resolve("palera1n.log")
         val args = listOf(exe.toString(), "--cli", "-f", "-d").joinToString(" ") { quote(it) }
         val script = dir.resolve("launch.sh")
+        val dollar = '$'
         val contents = "#!/usr/bin/env bash\nset -o pipefail\necho 'Burning-iBridge: palera1n CLI (rootful, debug)'\n" +
             "sudo " + args + " 2>&1 | tee " + quote(logfile.toString()) + "\n" +
-            "rc=" + "${PIPESTATUS[0]}" + "\necho EXIT_STATUS=" + "\"$" + "rc\n" +
-            "read -r -p 'Press Enter to close...' ignored || true\nexit " + "\"$" + "rc\n"
+            "rc=" + dollar + "{PIPESTATUS[0]}\n" +
+            "echo EXIT_STATUS=" + dollar + "rc\n" +
+            "read -r -p 'Press Enter to close...' ignored || true\nexit " + dollar + "rc\n"
         Files.writeString(script, contents)
         script.toFile().setExecutable(true)
         out("Launching palera1n in an interactive terminal; logfile: " + logfile)
