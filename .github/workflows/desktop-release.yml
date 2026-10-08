@@ -1,0 +1,13 @@
+# Trigger contract only. HereLiesAz/workflows owns all desktop build/release logic.
+# Central sync replaces this with a status tracker; no local release implementation.
+name: Desktop Release
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions: {}
+jobs:
+  hand-off:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Burning-iBridge desktop installers are built by HereLiesAz/workflows."
