@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "dev.hereliesaz.burningibridge"
-version = "0.1.1"
+version = "0.1.2"
 
 // Debian/macOS installers require a nonzero major version. CI supplies a
 // monotonically increasing build-specific version so package managers can upgrade.
@@ -26,6 +26,11 @@ compose.desktop {
     application {
         mainClass = "dev.hereliesaz.burningibridge.MainKt"
         nativeDistributions {
+            // The packaged jlink runtime previously omitted java.net.http,
+            // causing NoClassDefFoundError: java/net/http/HttpClient at startup.
+            // Include the complete JDK 21 runtime so new API use cannot silently
+            // break packaged builds while still working with Gradle 'run'.
+            includeAllModules = true
             targetFormats(
                 org.jetbrains.compose.desktop.application.dsl.TargetFormat.Dmg,
                 org.jetbrains.compose.desktop.application.dsl.TargetFormat.Deb
