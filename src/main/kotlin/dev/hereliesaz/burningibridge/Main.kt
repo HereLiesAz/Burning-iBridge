@@ -196,6 +196,9 @@ fun BurningIBridgeApp(window: AwtWindow) {
     var usbReading by remember { mutableStateOf(UsbReading(UsbMode.UNKNOWN, "Scanning connected USB devices")) }
     val monitor = remember {
         DeviceMonitor { reading -> EventQueue.invokeLater {
+            if (usbReading.mode != reading.mode) {
+                report("DEVICE: USB state " + usbReading.mode.label + " -> " + reading.mode.label)
+            }
             usbReading = reading
         } }
     }
@@ -318,8 +321,10 @@ fun BurningIBridgeApp(window: AwtWindow) {
                     Status("SSH / 02 RESEARCH", bridge.monitorState,
                         if (bridge.monitorState == "ONLINE") Ink.cyan else Ink.subdued)
                     val running = jobStates.filter { it.state == "RUNNING" || it.state == "QUEUED" }
-                    Status("OPERATIONS", if (running.isEmpty()) "IDLE" else running.size.toString() + " ACTIVE",
-                        if (running.isEmpty()) Ink.subdued else Ink.yellow)
+                    val jailbreakActive = bridge.jailbreakState in listOf("RUNNING", "LAUNCHING", "STOP_REQUESTED")
+                    val activeCount = running.size + if (jailbreakActive) 1 else 0
+                    Status("OPERATIONS", if (activeCount == 0) "IDLE" else activeCount.toString() + " ACTIVE",
+                        if (activeCount == 0) Ink.subdued else Ink.yellow)
                     Spacer(Modifier.weight(1f))
                     Secondary("SSH logs") { logChannel = "SSH"; logsVisible = true }
                     Primary(if (bridge.linkState == "READY") "Connected" else "Connect bridge") { connect() }
