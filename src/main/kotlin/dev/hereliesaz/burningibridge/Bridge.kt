@@ -32,6 +32,17 @@ class Bridge(private val jobs: Jobs, private val out: (String) -> Unit) {
     @Volatile private var proxy: Process? = null
     @Volatile var sshPort = 2233
     @Volatile var password: String = ""
+    @Volatile var jailbreakState: String = "IDLE"
+        private set
+    @Volatile var jailbreakStartedAt: Long = 0L
+        private set
+    @Volatile var jailbreakLastOutputAt: Long = 0L
+        private set
+    @Volatile var jailbreakLog: Path? = null
+        private set
+    @Volatile private var jailbreakPidFile: Path? = null
+    @Volatile private var jailbreakExitFile: Path? = null
+
     @Volatile var installHelpers: ((Path) -> Unit)? = null
     @Volatile var installIpsw: ((Path) -> Unit)? = null
     @Volatile var linkState: String = "DISCONNECTED"
@@ -304,35 +315,108 @@ class Bridge(private val jobs: Jobs, private val out: (String) -> Unit) {
 
     fun launchPalera1nManaged(ensureTool: (Path) -> Unit) {
         jobs.submit("jailbreak-launcher") { dir ->
+            val state = UsbProbe.detectNow()
+            out("DEVICE: preflight state: " + state.mode.label + " — " + state.detail)
+            require(state.mode == UsbMode.DFU) {
+                "DFU required before launching palera1n; current state is " +
+                    state.mode.label + ". Use the DFU indicator to confirm 05ac:1227."
+            }
             if (Host.find("palera1n") == null) ensureTool(dir)
             launchPalera1n()
         }
     }
 
+    fun stopPalera1n() {
+        val pid = jailbreakPidFile?.takeIf(Files::exists)?.let {
+            try { Files.readString(it).trim().toLongOrNull() } catch (_: Exception) { null }
+        }
+        if (pid == null) {
+            out("DEVICE: no managed palera1n session PID; press Ctrl+C in its terminal to stop it")
+            return
+        }
+        val handle = ProcessHandle.of(pid).orElse(null)
+        if (handle == null || !handle.isAlive) {
+            jailbreakState = "STOPPED"
+            out("DEVICE: palera1n terminal process already exited")
+            return
+        }
+        handle.descendants().forEach { it.destroy() }
+        handle.destroy()
+        jailbreakState = "STOP_REQUESTED"
+        out("DEVICE: stop requested for session PID " + pid + "; if sudo remains, press Ctrl+C in terminal")
+    }
+
     fun launchPalera1n() {
-        val exe = Host.find("palera1n") ?: error("Install palera1n in Tools first")
+        val device = UsbProbe.detectNow()
+        require(device.mode == UsbMode.DFU) { "DFU is not active (" + device.mode.label + "). Launch blocked to avoid waiting indefinitely." }
+        check(jailbreakState !in listOf("RUNNING", "LAUNCHING")) { "palera1n is already running" }
+        val exe = Host.find("palera1n") ?: error("Install palera1n first")
         val dir = Host.newLog("palera1n")
-        val logfile = dir.resolve("palera1n.log")
-        val args = listOf(exe.toString(), "--cli", "-f", "-d").joinToString(" ") { quote(it) }
+        val log = dir.resolve("palera1n.log")
+        val pid = dir.resolve("terminal.pid")
+        val exit = dir.resolve("exit-code.txt")
         val script = dir.resolve("launch.sh")
+        val args = listOf(exe.toString(), "--cli", "-f", "-d").joinToString(" ") { quote(it) }
         val dollar = '$'
-        val contents = "#!/usr/bin/env bash\nset -o pipefail\necho 'Burning-iBridge: palera1n CLI (rootful, debug)'\n" +
-            "sudo " + args + " 2>&1 | tee " + quote(logfile.toString()) + "\n" +
+        val contents = "#!/usr/bin/env bash\nset -o pipefail\n" +
+            "echo " + quote(dollar + dollar) + " > " + quote(pid.toString()) + "\n" +
+            "printf '%s\\n' 'Burning-iBridge: DFU was detected before launching palera1n' | tee " + quote(log.toString()) + "\n" +
+            "sudo " + args + " 2>&1 | tee -a " + quote(log.toString()) + "\n" +
             "rc=" + dollar + "{PIPESTATUS[0]}\n" +
-            "echo EXIT_STATUS=" + dollar + "rc\n" +
-            "read -r -p 'Press Enter to close...' ignored || true\nexit " + dollar + "rc\n"
+            "printf '%s\\n' " + doubleQuote(dollar + "rc") + " > " + quote(exit.toString()) + "\n" +
+            "printf 'palera1n exit status: %s\\n' " + doubleQuote(dollar + "rc") + " | tee -a " + quote(log.toString()) + "\n" +
+            "read -r -p 'Press Enter to close...' ignored || true\n" +
+            "exit " + dollar + "rc\n"
         Files.writeString(script, contents)
         script.toFile().setExecutable(true)
-        out("Launching palera1n in an interactive terminal; logfile: " + logfile)
+        jailbreakLog = log
+        jailbreakPidFile = pid
+        jailbreakExitFile = exit
+        jailbreakStartedAt = System.currentTimeMillis()
+        jailbreakLastOutputAt = jailbreakStartedAt
+        jailbreakState = "LAUNCHING"
+        out("DEVICE: launching palera1n in interactive terminal; logs: " + log)
         val terminal = when {
             Host.isMac -> listOf("open", "-a", "Terminal", script.toString())
             Host.find("konsole") != null -> listOf("konsole", "-e", "bash", script.toString())
             Host.find("gnome-terminal") != null -> listOf("gnome-terminal", "--", "bash", script.toString())
             Host.find("xterm") != null -> listOf("xterm", "-e", "bash", script.toString())
-            else -> error("No terminal emulator found. Run: bash " + script)
+            else -> error("No terminal emulator found. Launch manually: bash " + script)
         }
         ProcessBuilder(terminal).start()
+        Thread {
+            var seen = 0
+            var final = false
+            var deadline = System.currentTimeMillis() + 3_600_000
+            while (System.currentTimeMillis() < deadline && !final) {
+                try {
+                    if (Files.isRegularFile(log)) {
+                        val lines = Files.readAllLines(log)
+                        if (lines.size > seen) {
+                            lines.drop(seen).forEach { out("DEVICE: palera1n: " + it.take(500)) }
+                            seen = lines.size
+                            jailbreakLastOutputAt = System.currentTimeMillis()
+                            if (jailbreakState == "LAUNCHING") jailbreakState = "RUNNING"
+                        }
+                    }
+                    if (Files.isRegularFile(exit)) {
+                        val status = Files.readString(exit).trim()
+                        jailbreakState = if (status == "0") "COMPLETE" else "FAILED ($status)"
+                        out("DEVICE: palera1n finished, exit status " + status)
+                        final = true
+                    }
+                    Thread.sleep(1200)
+                } catch (e: Exception) {
+                    out("DEVICE: log monitor error: " + e.message)
+                    final = true
+                }
+            }
+            if (!final && jailbreakState in listOf("RUNNING", "LAUNCHING"))
+                jailbreakState = "UNKNOWN / NO EXIT MARKER"
+        }.apply { name = "palera1n-log-watch"; isDaemon = true }.start()
     }
+
+    private fun doubleQuote(value: String): String = "\"" + value.replace("\"", "\\\"") + "\""
 
     fun probeUsb() {
         jobs.submit("usb-detect") { dir ->
