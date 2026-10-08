@@ -7,6 +7,10 @@ plugins {
 group = "dev.hereliesaz.burningibridge"
 version = "0.1.0"
 
+// Debian/macOS installers require a nonzero major version. CI supplies a
+// monotonically increasing build-specific version so package managers can upgrade.
+val desktopPackageVersion = providers.gradleProperty("desktopPackageVersion").orElse("1.1.0").get()
+
 kotlin { jvmToolchain(21) }
 
 dependencies {
@@ -27,7 +31,7 @@ compose.desktop {
                 org.jetbrains.compose.desktop.application.dsl.TargetFormat.Deb
             )
             packageName = "Burning-iBridge"
-            packageVersion = "1.1.0"
+            packageVersion = desktopPackageVersion
             description = "T2 bridgeOS research workstation"
             vendor = "HereLiesAz"
         }
