@@ -2,6 +2,14 @@
 
 Tested research hardware: Intel T2 MacBook Air A1932, MacBookAir8,1 (iBridge2,8).
 
+## Desktop redesign — 0.1.3
+
+A redesigned Compose workstation replaces the early tab UI: typography-led navigation, persistent USB/tunnel/SSH/job status, a live selectable and shareable telemetry panel, automatically chained SSH prerequisites, and a persistent drag-and-drop script library. **palera1n is gated by live DFU detection** so the launcher no longer opens when the Mac is in the wrong USB state.
+
+The 2018 T2 MacBook Air's DFU shortcut requires physical keys; Burning-iBridge now shows the model-specific steps, polls USB state, and shows the `palera1n` terminal log and stop control. See [the detailed UX contract](docs/UX.md), [operator guide](docs/COMPOSE.md), and [Releases](https://github.com/HereLiesAz/Burning-iBridge/releases).
+
+**Validation:** The changes are committed, but native packages and live T2 interaction for this redesign must still pass CI and device testing. No Activation Lock or Secure Boot policy bypass is implemented.
+
 ## Burning-iBridge — Compose Desktop (Linux / macOS)
 
 **[Compose GUI source](src/main/kotlin/dev/hereliesaz/burningibridge/Main.kt)** · **[Setup and operator guide](docs/COMPOSE.md)** · [bridgeOS API reference](docs/bridgeos-api-reference.md)
@@ -28,7 +36,7 @@ This wiring does not yet prove a successful first package: monitor [desktop stat
 
 **Installation help:** On Ubuntu/Debian, use `sudo apt install ./Burning-iBridge-*-linux-amd64.deb` from the directory containing the downloaded file. See [the installer troubleshooting guide](docs/COMPOSE.md#linux-package-compatibility-and-installation-troubleshooting) for dependency checks and macOS first-launch guidance.
 
-**Status:** First implementation committed; **native packages, Gradle tests and live GUI hardware integration have not yet been verified**. Third-party binaries are downloaded **at runtime**, not included in the Git repository. Host package setup requires administrator approval. Alternative OS installation, Intel Secure Boot policy writes, and Activation Lock removal are **not implemented**.
+**Status:** Earlier native installers were successfully published and installed on Ubuntu; **this redesigned UI is not yet validated on Linux and macOS hardware**. Third-party binaries are downloaded **at runtime**, not included in the Git repository. Host package setup requires administrator approval. Alternative OS installation, Intel Secure Boot policy writes, and Activation Lock removal are **not implemented**.
 
 
 
