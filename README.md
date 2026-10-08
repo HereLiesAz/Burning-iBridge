@@ -20,3 +20,7 @@ For framework-specific projects, prefer one of the dedicated templates:
 - `HereLiesAz/compose-multiplatform-template`
 - `HereLiesAz/react-app-template`
 - `HereLiesAz/gradle-library-template`
+
+## T2 research reference
+
+- [bridgeOS API & interface reference](docs/bridgeos-api-reference.md) — a living, evidence-graded inventory of observed T2/bridgeOS services, symbols, EFI variables, and open research questions.
