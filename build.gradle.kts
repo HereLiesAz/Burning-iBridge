@@ -14,7 +14,8 @@ dependencies {
     implementation("com.github.mwiede:jsch:0.2.26")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
     implementation("org.apache.commons:commons-compress:1.28.0")
-    testImplementation(kotlin("test"))
+    testImplementation(kotlin("test-junit5"))
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.13.4")
 }
 
 compose.desktop {
