@@ -387,8 +387,29 @@ class BurningIBridge(tk.Tk):
             ipsw + " dyld symaddr " + c + " setNVRAMVariable --all",
             ipsw + " dyld symaddr " + c + " getNVRAMVariable --all",
         ]
-        for i, cmd in enumerate(cmds, 1):
-            self.run_terminal(cmd, "dyld-" + str(i))
+        self.run_dyld_series(cmds)
+
+    def run_dyld_series(self, commands):
+        """Execute ipsw probes sequentially, writing one log per probe."""
+        folder = timestamped("ipsw-dyld")
+        summary = folder / "00_summary.txt"
+        script = folder / "run-analysis.sh"
+        lines = ["#!/usr/bin/env bash", "set -u", "echo 'Running ipsw dyld research probes'"]
+        for i, cmd in enumerate(commands, 1):
+            label = "probe-" + str(i).zfill(2)
+            logfile = folder / (label + ".log")
+            lines.append("echo " + shlex.quote(label + ": " + cmd))
+            lines.append(cmd + " > " + shlex.quote(str(logfile)) + " 2>&1")
+            lines.append("status=$?")
+            lines.append("printf '%s exit=%s\\n' " + shlex.quote(label) + " \"$status\" >> " +
+                         shlex.quote(str(summary)))
+            lines.append("echo " + shlex.quote("Log: " + str(logfile)))
+        lines.append("echo " + shlex.quote("Summary: " + str(summary)))
+        lines.append("read -r -p 'Press Enter to close...' _ || true")
+        script.write_text("\n".join(lines) + "\n")
+        script.chmod(0o700)
+        self.write("Sequential dyld analysis: " + str(folder))
+        terminal(script)
 
     def checksum(self):
         path = Path(self.iso.get()).expanduser()
