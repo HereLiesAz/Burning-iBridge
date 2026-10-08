@@ -4,6 +4,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.*
 import androidx.compose.runtime.*
@@ -381,7 +382,16 @@ fun BurningIBridgeApp(window: AwtWindow) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Field(sshPort, { sshPort = it.filter(Char::isDigit) }, "LOCAL SSH PORT", Modifier.width(156.dp))
                                         Spacer(Modifier.width(12.dp))
-                                        Field(sshPassword, { sshPassword = it }, "ROOT PASSWORD (MEMORY ONLY)", Modifier.weight(1f))
+                                        OutlinedTextField(
+                                            sshPassword, { sshPassword = it },
+                                            label = { Text("ROOT PASSWORD (MEMORY ONLY)", fontSize = 12.sp) },
+                                            visualTransformation = PasswordVisualTransformation(),
+                                            singleLine = true, modifier = Modifier.weight(1f),
+                                            colors = TextFieldDefaults.outlinedTextFieldColors(
+                                                textColor = Ink.text, focusedBorderColor = Ink.accent,
+                                                unfocusedBorderColor = Ink.border, cursorColor = Ink.accent
+                                            )
+                                        )
                                     }
                                     Spacer(Modifier.height(15.dp))
                                     Row {
@@ -419,8 +429,10 @@ fun BurningIBridgeApp(window: AwtWindow) {
                                     Readable(usbReading.detail, color = Ink.subdued, size = 12)
                                     Spacer(Modifier.height(12.dp))
                                     if (usbReading.mode != UsbMode.DFU) {
-                                        Readable("DFU is not active. The app cannot put a powered-off T2 into DFU by software alone. Prepare the Mac's DFU key sequence and verify this indicator changes to DFU MODE before running the jailbreak.",
-                                            color = Ink.yellow, size = 12)
+                                        Eyebrow("MACBOOK AIR A1932  /  DFU ASSISTANT", Ink.yellow)
+                                        Spacer(Modifier.height(6.dp))
+                                        Readable("1  Connect the Mac’s left-front USB-C port to the Linux host using a data-capable cable.\n2  Hold Power until the target Mac is off.\n3  Press and release Power; immediately hold LEFT Control + LEFT Option + RIGHT Shift + Power for about 3 seconds.\n4  Release the keys. The Mac’s screen stays black. This indicator turns green once the host detects DFU (05ac:1227).",
+                                            color = Ink.text, size = 12)
                                         Spacer(Modifier.height(10.dp))
                                     }
                                     Row {
