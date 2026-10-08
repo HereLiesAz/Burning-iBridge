@@ -32,6 +32,98 @@ class Bridge(private val jobs: Jobs, private val out: (String) -> Unit) {
     @Volatile private var proxy: Process? = null
     @Volatile var sshPort = 2233
     @Volatile var password: String = ""
+    @Volatile var linkState: String = "DISCONNECTED"
+        private set
+    @Volatile var controlState: String = "OFFLINE"
+        private set
+    @Volatile var monitorState: String = "OFFLINE"
+        private set
+    @Volatile var hostFingerprint: String = ""
+        private set
+    @Volatile private var control: Session? = null
+    @Volatile private var monitor: Session? = null
+
+    val tunnelRunning: Boolean get() = proxy?.isAlive == true || linkState == "EXTERNAL_TUNNEL"
+    private fun status(state: String) {
+        linkState = state
+        out("SSH: connection state -> " + state)
+    }
+
+    private fun connectBoth() {
+        if (control?.isConnected == true && monitor?.isConnected == true) {
+            status("READY")
+            return
+        }
+        control?.disconnect()
+        monitor?.disconnect()
+        control = null
+        monitor = null
+        controlState = "CONNECTING"
+        monitorState = "WAITING"
+        try {
+            val one = session()
+            control = one
+            controlState = "ONLINE"
+            out("SSH: channel 1 / control authenticated")
+            val two = session()
+            monitor = two
+            monitorState = "ONLINE"
+            out("SSH: channel 2 / research authenticated")
+            status("READY")
+        } catch (e: Exception) {
+            control?.disconnect()
+            monitor?.disconnect()
+            control = null
+            monitor = null
+            controlState = "OFFLINE"
+            monitorState = "OFFLINE"
+            val message = e.message.orEmpty()
+            if (message.contains("reject HostKey", true) || message.contains("UnknownHostKey", true) ||
+                message.contains("HostKey has been changed", true)) {
+                status("HOST_KEY_APPROVAL")
+                fingerprintNow(Host.newLog("host-key"))
+            } else {
+                status("SSH_ERROR")
+                throw e
+            }
+        }
+    }
+
+    fun connectManaged(ensureTools: (Path) -> Unit) {
+        jobs.submit("connect-bridge") { dir ->
+            status("PREPARING")
+            if (Host.find("iproxy") == null || Host.find("ssh-keyscan") == null) {
+                out("SSH: provisioning missing host helpers")
+                ensureTools(dir)
+            }
+            status("STARTING_TUNNEL")
+            startProxy()
+            val deadline = System.currentTimeMillis() + 15_000
+            while (System.currentTimeMillis() < deadline && !portOpen()) Thread.sleep(250)
+            check(portOpen()) { "SSH tunnel did not open: verify T2 USB state" }
+            status("AUTHENTICATING")
+            connectBoth()
+        }
+    }
+
+    fun refreshConnectionState() {
+        if (linkState == "READY" && (control?.isConnected != true || monitor?.isConnected != true)) {
+            controlState = if (control?.isConnected == true) "ONLINE" else "OFFLINE"
+            monitorState = if (monitor?.isConnected == true) "ONLINE" else "OFFLINE"
+            status("DISCONNECTED")
+        }
+    }
+
+    private fun portOpen(): Boolean = try {
+        Socket().use { it.connect(InetSocketAddress("127.0.0.1", sshPort), 500); true }
+    } catch (_: Exception) { false }
+
+    fun connectAfterApproval() {
+        jobs.submit("ssh-two-channels") { _ -> connectBoth() }
+    }
+    private fun controlSession(): Session = control?.takeIf { it.isConnected } ?: session()
+    private fun researchSession(): Session = monitor?.takeIf { it.isConnected } ?: session()
+
 
     private fun session(): Session {
         val jsch = JSch()
@@ -46,7 +138,9 @@ class Bridge(private val jobs: Jobs, private val out: (String) -> Unit) {
 
     private var candidateKey: String? = null
     fun fingerprint() {
-        jobs.submit("ssh-host-key") { dir ->
+        jobs.submit("ssh-host-key") { dir -> fingerprintNow(dir) }
+    }
+    private fun fingerprintNow(dir: Path) {
             val keyscan = Host.find("ssh-keyscan") ?: error("OpenSSH ssh-keyscan not installed")
             val p = ProcessBuilder(keyscan.toString(), "-T", "6", "-p", sshPort.toString(), "127.0.0.1")
                 .redirectErrorStream(true).start()
@@ -63,9 +157,9 @@ class Bridge(private val jobs: Jobs, private val out: (String) -> Unit) {
             val digest = MessageDigest.getInstance("SHA-256").digest(Base64.getDecoder().decode(fields[2]))
             val fingerprint = Base64.getEncoder().withoutPadding().encodeToString(digest)
             candidateKey = key
-            out("Host key (" + fields[1] + "): SHA256:" + fingerprint)
-            out("Check this fingerprint independently. Then click 'Trust displayed key' if correct.")
-        }
+            hostFingerprint = "SHA256:" + fingerprint
+            out("SSH: Host key (" + fields[1] + "): SHA256:" + fingerprint)
+            out("SSH: confirm fingerprint before authenticating")
     }
 
     fun trustKey() {
@@ -76,6 +170,7 @@ class Bridge(private val jobs: Jobs, private val out: (String) -> Unit) {
         }
         out("Trusted one SSH host key in " + Host.knownHosts)
         candidateKey = null
+        connectAfterApproval()
     }
 
     fun startProxy() {
@@ -88,13 +183,15 @@ class Bridge(private val jobs: Jobs, private val out: (String) -> Unit) {
             }
         } catch (_: Exception) { false }
         if (alreadyListening) {
-            out("Port " + sshPort + " already has a listener. Reusing it; verify the T2 with SSH test.")
+            status("EXTERNAL_TUNNEL")
+            out("SSH: Port " + sshPort + " has a listener; reusing existing proxy")
             return
         }
         val tool = Host.find("iproxy") ?: error("iproxy missing; install USB helper tools")
         val p = ProcessBuilder(tool.toString(), sshPort.toString(), "44").redirectErrorStream(true).start()
         proxy = p
-        out("iproxy PID " + p.pid() + " maps localhost:" + sshPort + " -> T2:44")
+        status("TUNNEL_READY")
+        out("SSH: iproxy PID " + p.pid() + " maps localhost:" + sshPort + " -> T2:44")
         Thread {
             p.inputStream.bufferedReader().useLines { it.forEach { line -> out("iproxy: " + line) } }
             out("Managed iproxy stopped (exit " + p.waitFor() + ")")
@@ -102,17 +199,22 @@ class Bridge(private val jobs: Jobs, private val out: (String) -> Unit) {
     }
 
     fun stopProxy() {
+        control?.disconnect(); control = null
+        monitor?.disconnect(); monitor = null
+        controlState = "OFFLINE"; monitorState = "OFFLINE"
         proxy?.destroy()
         proxy = null
-        out("Stop requested for managed iproxy (other iproxy processes are untouched)")
+        status("DISCONNECTED")
+        out("SSH: managed proxy stopped; external processes untouched")
     }
 
     fun runRemote(name: String, script: String) {
         jobs.submit(name) { dir ->
             Files.writeString(dir.resolve("script.sh"), "#!/bin/sh\n" + script + "\n")
-            val ssh = session()
+            val ssh = controlSession()
             try {
                 val command = ssh.openChannel("exec") as ChannelExec
+                out("SSH: running " + name + " through control channel")
                 command.setCommand("/bin/sh -s")
                 command.setInputStream(ByteArrayInputStream((script + "\n").toByteArray()))
                 val errors = ByteArrayOutputStream()
@@ -122,7 +224,7 @@ class Bridge(private val jobs: Jobs, private val out: (String) -> Unit) {
                 command.inputStream.bufferedReader().useLines { lines ->
                     lines.forEach { line ->
                         Files.writeString(logfile, line + "\n", StandardOpenOption.CREATE, StandardOpenOption.APPEND)
-                        out(line.take(500))
+                        out("SSH: " + line.take(500))
                     }
                 }
                 var count = 0
@@ -130,21 +232,22 @@ class Bridge(private val jobs: Jobs, private val out: (String) -> Unit) {
                 val stderr = errors.toString(Charsets.UTF_8)
                 if (stderr.isNotBlank()) {
                     Files.writeString(logfile, stderr, StandardOpenOption.CREATE, StandardOpenOption.APPEND)
-                    stderr.lineSequence().forEach { if (it.isNotEmpty()) out("stderr: " + it.take(400)) }
+                    stderr.lineSequence().forEach { if (it.isNotEmpty()) out("SSH: stderr: " + it.take(400)) }
                 }
                 val exit = command.exitStatus
                 command.disconnect()
-                out("Remote exit code: " + exit + "; " + logfile)
+                out("SSH: remote exit code: " + exit + "; " + logfile)
                 if (exit != 0) error("Remote command failed; inspect " + logfile)
-            } finally { ssh.disconnect() }
+            } finally { if (ssh !== control && ssh !== monitor) ssh.disconnect() }
         }
     }
 
     fun fetchDyld() {
         jobs.submit("fetch-dyld") { dir ->
             val target = Files.createDirectories(dir.resolve("dyld"))
-            val ssh = session()
+            val ssh = researchSession()
             try {
+                out("SSH: research SFTP channel opened")
                 val sftp = ssh.openChannel("sftp") as ChannelSftp
                 sftp.connect(15000)
                 try {
@@ -155,13 +258,13 @@ class Bridge(private val jobs: Jobs, private val out: (String) -> Unit) {
                     entries.forEach { entry ->
                         val length = entry.attrs.size
                         require(length in 1L..1_073_741_824L) { "Unexpected cache size for " + entry.filename }
-                        out("SFTP: " + entry.filename + " (" + length + " bytes)")
+                        out("SSH: SFTP: " + entry.filename + " (" + length + " bytes)")
                         sftp.get(remote + entry.filename, target.resolve(entry.filename).toString())
                         check(Files.size(target.resolve(entry.filename)) == length) { "Incomplete download " + entry.filename }
                     }
                     Files.writeString(dir.resolve("files.txt"), entries.joinToString("\n") { it.filename } + "\n")
                 } finally { sftp.disconnect() }
-            } finally { ssh.disconnect() }
+            } finally { if (ssh !== control && ssh !== monitor) ssh.disconnect() }
             out("Fetched dyld files: " + target)
             out("Do not publish raw caches or device identifiers from logs.")
         }
