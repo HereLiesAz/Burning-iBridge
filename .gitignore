@@ -7,3 +7,15 @@
 build/
 dist/
 out/
+
+# Kotlin / Compose build state
+.gradle/
+.kotlin/
+**/build/
+*.class
+
+# Local probes or device captures (keep private)
+t2-efi-*/
+t2-dyld-*/
+*.ipsw
+*.dmg
