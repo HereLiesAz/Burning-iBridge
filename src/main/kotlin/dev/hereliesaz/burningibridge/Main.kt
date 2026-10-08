@@ -192,6 +192,12 @@ fun BurningIBridgeApp(window: AwtWindow) {
     val jobs = remember { Jobs(report) }
     var jobStates by remember { mutableStateOf(emptyList<Jobs.JobState>()) }
     val bridge = remember { Bridge(jobs, report) }
+    var usbReading by remember { mutableStateOf(UsbReading(UsbMode.UNKNOWN, "Scanning connected USB devices")) }
+    val monitor = remember {
+        DeviceMonitor { reading -> EventQueue.invokeLater {
+            usbReading = reading
+        } }
+    }
     val installer = remember { Installer(report, jobs) }
     val scripts = remember { mutableStateListOf<ScriptShelf.ScriptItem>() }
     val shelf = remember {
@@ -200,11 +206,11 @@ fun BurningIBridgeApp(window: AwtWindow) {
             onEvent = report
         )
     }
-    DisposableEffect(jobs, bridge, shelf) {
+    DisposableEffect(jobs, bridge, shelf, monitor) {
         bridge.installHelpers = { dir -> installer.ensureSystemHelpers(dir) }
         bridge.installIpsw = { dir -> installer.ensureTool("ipsw", dir) }
         jobs.onJobsChanged = { updated -> EventQueue.invokeLater { jobStates = updated } }
-        onDispose { bridge.stopProxy(); shelf.close(); jobs.executor.shutdownNow() }
+        onDispose { monitor.close(); bridge.stopProxy(); shelf.close(); jobs.executor.shutdownNow() }
     }
     ReceiveScriptDrops(window, shelf, report)
     LaunchedEffect(bridge) {
@@ -296,7 +302,14 @@ fun BurningIBridgeApp(window: AwtWindow) {
                         .padding(horizontal = 26.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val tick = revision // recomposes states fed by the SSH/background log
+                    val tick = revision // recomposes background SSH/jailbreak state
+                    Status("USB / T2", usbReading.mode.label,
+                        when (usbReading.mode) {
+                            UsbMode.DFU -> Ink.accent
+                            UsbMode.BRIDGE_OS -> Ink.cyan
+                            UsbMode.DISCONNECTED, UsbMode.UNKNOWN -> Ink.red
+                            else -> Ink.yellow
+                        })
                     Status("TUNNEL", if (bridge.tunnelRunning) "OPEN" else "CLOSED",
                         if (bridge.tunnelRunning) Ink.accent else Ink.subdued)
                     Status("SSH / 01 CONTROL", bridge.controlState,
@@ -396,10 +409,42 @@ fun BurningIBridgeApp(window: AwtWindow) {
                                         Secondary("Show SSH-only logs") { logChannel = "SSH"; logsVisible = true }
                                     }
                                 }
-                                Pane("Recovery / jailbreak", "Interactive palera1n session. Jailbreaking affects bridgeOS, not Activation Lock or host Secure Boot policy.") {
+                                Pane("Jailbreak / DFU preflight", "Live USB detection runs every few seconds. palera1n cannot start until a DFU device is detected.") {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Status("CURRENT USB STATE", usbReading.mode.label,
+                                            if (usbReading.mode == UsbMode.DFU) Ink.accent else Ink.yellow)
+                                        Spacer(Modifier.weight(1f))
+                                        Secondary("Rescan now") { monitor.refresh() }
+                                    }
+                                    Readable(usbReading.detail, color = Ink.subdued, size = 12)
+                                    Spacer(Modifier.height(12.dp))
+                                    if (usbReading.mode != UsbMode.DFU) {
+                                        Readable("DFU is not active. The app cannot put a powered-off T2 into DFU by software alone. Prepare the Mac's DFU key sequence and verify this indicator changes to DFU MODE before running the jailbreak.",
+                                            color = Ink.yellow, size = 12)
+                                        Spacer(Modifier.height(10.dp))
+                                    }
                                     Row {
-                                        Primary("Launch palera1n") { act { bridge.launchPalera1nManaged { dir -> installer.ensureTool("palera1n", dir) } } }
-                                        Secondary("Install missing tools") { page = 4 }
+                                        Primary("Launch palera1n", usbReading.mode == UsbMode.DFU &&
+                                            bridge.jailbreakState !in listOf("RUNNING", "LAUNCHING")) {
+                                            act { bridge.launchPalera1nManaged { dir -> installer.ensureTool("palera1n", dir) } }
+                                        }
+                                        Secondary("Stop managed session", bridge.jailbreakState in listOf("RUNNING", "LAUNCHING", "STOP_REQUESTED")) {
+                                            bridge.stopPalera1n()
+                                        }
+                                        Secondary("Show jailbreak logs") { logChannel = "DEVICE"; logsVisible = true }
+                                    }
+                                    val jailbreakAge = (timeNow() - bridge.jailbreakStartedAt) / 1000
+                                    val silentTime = (timeNow() - bridge.jailbreakLastOutputAt) / 1000
+                                    if (bridge.jailbreakState != "IDLE") {
+                                        Readable("palera1n: " + bridge.jailbreakState +
+                                            "  ·  elapsed " + jailbreakAge + "s" +
+                                            if (bridge.jailbreakState == "RUNNING" && silentTime > 30) "  ·  no new output for " + silentTime + "s" else "",
+                                            mono = true, color = if (silentTime > 30 && bridge.jailbreakState == "RUNNING") Ink.yellow else Ink.cyan)
+                                        bridge.jailbreakLog?.let { log ->
+                                            Spacer(Modifier.height(6.dp))
+                                            Readable("Saved log: " + log.toString(), mono = true, color = Ink.subdued, size = 11)
+                                            Secondary("Open terminal logs ↗") { openDir(log.parent, report) }
+                                        }
                                     }
                                 }
                             }
