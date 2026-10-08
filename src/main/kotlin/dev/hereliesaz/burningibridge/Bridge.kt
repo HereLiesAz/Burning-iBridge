@@ -383,7 +383,12 @@ class Bridge(private val jobs: Jobs, private val out: (String) -> Unit) {
             Host.find("xterm") != null -> listOf("xterm", "-e", "bash", script.toString())
             else -> error("No terminal emulator found. Launch manually: bash " + script)
         }
-        ProcessBuilder(terminal).start()
+        try {
+            ProcessBuilder(terminal).start()
+        } catch (e: Exception) {
+            jailbreakState = "LAUNCH_FAILED"
+            throw e
+        }
         Thread {
             var seen = 0
             var final = false
@@ -397,6 +402,20 @@ class Bridge(private val jobs: Jobs, private val out: (String) -> Unit) {
                             seen = lines.size
                             jailbreakLastOutputAt = System.currentTimeMillis()
                             if (jailbreakState == "LAUNCHING") jailbreakState = "RUNNING"
+                        }
+                    }
+                    if (!Files.exists(pid) && System.currentTimeMillis() - jailbreakStartedAt > 25_000) {
+                        jailbreakState = "TERMINAL_NOT_STARTED"
+                        out("DEVICE: palera1n terminal did not create its PID marker; open its log directory")
+                        final = true
+                    }
+                    if (Files.isRegularFile(pid) && !Files.isRegularFile(exit) &&
+                        System.currentTimeMillis() - jailbreakStartedAt > 10_000) {
+                        val shellPid = Files.readString(pid).trim().toLongOrNull()
+                        if (shellPid != null && ProcessHandle.of(shellPid).map { !it.isAlive }.orElse(false)) {
+                            jailbreakState = "STOPPED_WITHOUT_EXIT"
+                            out("DEVICE: palera1n terminal exited without a completion marker")
+                            final = true
                         }
                     }
                     if (Files.isRegularFile(exit)) {
