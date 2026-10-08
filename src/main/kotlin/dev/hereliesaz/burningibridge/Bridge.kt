@@ -327,7 +327,7 @@ class Bridge(private val jobs: Jobs, private val out: (String) -> Unit) {
     }
 
     fun stopPalera1n() {
-        val pid = jailbreakPidFile?.takeIf(Files::exists)?.let {
+        val pid = jailbreakPidFile?.takeIf { Files.exists(it) }?.let {
             try { Files.readString(it).trim().toLongOrNull() } catch (_: Exception) { null }
         }
         if (pid == null) {
