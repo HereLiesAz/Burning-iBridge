@@ -27,7 +27,7 @@ compose.desktop {
                 org.jetbrains.compose.desktop.application.dsl.TargetFormat.Deb
             )
             packageName = "Burning-iBridge"
-            packageVersion = "0.1.0"
+            packageVersion = "1.1.0"
             description = "T2 bridgeOS research workstation"
             vendor = "HereLiesAz"
         }
