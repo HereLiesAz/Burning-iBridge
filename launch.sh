@@ -40,4 +40,7 @@ if [[ ! -x "$DISTRIBUTION/bin/gradle" ]]; then
   rm -f "$ARCHIVE" "$ARCHIVE.sha256"
 fi
 
-exec "$DISTRIBUTION/bin/gradle" -p "$HERE" run "$@"
+if [[ $# -eq 0 ]]; then
+  set -- run
+fi
+exec "$DISTRIBUTION/bin/gradle" -p "$HERE" "$@"
