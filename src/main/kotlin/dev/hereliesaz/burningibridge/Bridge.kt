@@ -5,6 +5,9 @@ import com.jcraft.jsch.ChannelSftp
 import com.jcraft.jsch.JSch
 import com.jcraft.jsch.Session
 import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.net.InetSocketAddress
+import java.net.Socket
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardOpenOption
@@ -78,6 +81,16 @@ class Bridge(private val jobs: Jobs, private val out: (String) -> Unit) {
     fun startProxy() {
         val current = proxy
         if (current != null && current.isAlive) { out("Managed iproxy already running"); return }
+        val alreadyListening = try {
+            Socket().use { socket ->
+                socket.connect(InetSocketAddress("127.0.0.1", sshPort), 400)
+                true
+            }
+        } catch (_: Exception) { false }
+        if (alreadyListening) {
+            out("Port " + sshPort + " already has a listener. Reusing it; verify the T2 with SSH test.")
+            return
+        }
         val tool = Host.find("iproxy") ?: error("iproxy missing; install USB helper tools")
         val p = ProcessBuilder(tool.toString(), sshPort.toString(), "44").redirectErrorStream(true).start()
         proxy = p
@@ -102,7 +115,8 @@ class Bridge(private val jobs: Jobs, private val out: (String) -> Unit) {
                 val command = ssh.openChannel("exec") as ChannelExec
                 command.setCommand("/bin/sh -s")
                 command.setInputStream(ByteArrayInputStream((script + "\n").toByteArray()))
-                command.setErrStream(java.io.ByteArrayOutputStream())
+                val errors = ByteArrayOutputStream()
+                command.setErrStream(errors)
                 val logfile = dir.resolve("remote.log")
                 command.connect(12000)
                 command.inputStream.bufferedReader().useLines { lines ->
@@ -113,6 +127,11 @@ class Bridge(private val jobs: Jobs, private val out: (String) -> Unit) {
                 }
                 var count = 0
                 while (!command.isClosed && count++ < 100) Thread.sleep(100)
+                val stderr = errors.toString(Charsets.UTF_8)
+                if (stderr.isNotBlank()) {
+                    Files.writeString(logfile, stderr, StandardOpenOption.CREATE, StandardOpenOption.APPEND)
+                    stderr.lineSequence().forEach { if (it.isNotEmpty()) out("stderr: " + it.take(400)) }
+                }
                 val exit = command.exitStatus
                 command.disconnect()
                 out("Remote exit code: " + exit + "; " + logfile)
