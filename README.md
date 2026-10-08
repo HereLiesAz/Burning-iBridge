@@ -18,6 +18,14 @@ Features currently implemented in source:
 
 **To run from source:** JDK 21, then `bash launch.sh` (downloads a SHA-256-verified Gradle distribution automatically) or `gradle run` if Gradle is already installed. To package: `gradle packageDistributionForCurrentOS`. See [docs/COMPOSE.md](docs/COMPOSE.md) for prerequisites, supported tools and the operator workflow.
 
+### Automatic desktop GitHub Releases
+
+Every push to `main` (including every merged PR) is registered with the centralized [HereLiesAz/workflows](https://github.com/HereLiesAz/workflows) **Multi-Platform App Release** executor. The [.github/workflows/desktop-release.yml](.github/workflows/desktop-release.yml) file is **only the event trigger contract**; package/build/release logic and version grouping remain centralized.
+
+The required matrix builds `Linux x86_64 .deb`, `macOS arm64 .dmg`, and `macOS Intel .dmg`. Windows is deliberately optional/not enabled. Each job runs the Kotlin/JVM tests and creates a native installer with `bash launch.sh test packageDeb` or `bash launch.sh test packageDmg`; a failed required job blocks publishing. The centralized publisher tags exact `MAJOR.MINOR.PATCH.BUILD` builds and groups downloadable, build-numbered files in the matching `MAJOR.MINOR.PATCH` [GitHub Release](https://github.com/HereLiesAz/Burning-iBridge/releases).
+
+This wiring does not yet prove a successful first package: monitor [desktop status / GitHub Actions](https://github.com/HereLiesAz/Burning-iBridge/actions) and the [central workflow executions](https://github.com/HereLiesAz/workflows/actions/workflows/multi-platform-app-release.yml). Unsigned macOS apps may require explicit first-launch approval.
+
 **Status:** First implementation committed; **native packages, Gradle tests and live GUI hardware integration have not yet been verified**. Third-party binaries are downloaded **at runtime**, not included in the Git repository. Host package setup requires administrator approval. Alternative OS installation, Intel Secure Boot policy writes, and Activation Lock removal are **not implemented**.
 
 
