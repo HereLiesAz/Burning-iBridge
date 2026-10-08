@@ -90,6 +90,14 @@ For the portable archive, extract it into a user-writable directory; the distrib
 
 On macOS, mount the appropriate `.dmg` (Intel versus Apple Silicon), drag the app into Applications, and use **System Settings → Privacy & Security → Open Anyway** if the unsigned app is blocked. Do not disable Gatekeeper globally.
 
+## Fixed: `java/net/http/HttpClient` startup failure (0.1.2)
+
+Version 0.1.1.31 could install successfully yet fail to start with `Error: java/net/http/HttpClient`. Investigation of an actual older Linux `.deb` showed its self-contained jlink runtime only included `java.base`, `java.datatransfer`, `java.xml`, `java.prefs`, `java.desktop`, `java.logging`, and `jdk.crypto.ec`—**not `java.net.http`**. That module is required by the app's built-in HTTP client for downloading tools.
+
+Compose now packages the complete Java runtime (`includeAllModules = true`). This avoids a repeat failure if future features use other JDK modules. The central Linux/macOS release matrix runs `scripts/verify-runtime-modules.sh` after native packaging and **fails the release** if runtime metadata does not list `java.net.http`, `java.desktop`, and `jdk.crypto.ec`. The shell test was verified against the previous broken image and synthetic complete runtime.
+
+**Install a verified 0.1.2 package once it is published;** the existing 0.1.1 installer cannot be fixed by upgrading the system Java installation, because it bundles its own runtime. The application data in `~/.burning-ibridge/` is separate from the installed package.
+
 ## Remaining integration work
 
 - Run Gradle build/tests and exercise the native Linux and macOS bundles on both architectures.
