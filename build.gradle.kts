@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "dev.hereliesaz.burningibridge"
-version = "0.1.2"
+version = "0.1.3"
 
 // Debian/macOS installers require a nonzero major version. CI supplies a
 // monotonically increasing build-specific version so package managers can upgrade.
