@@ -73,20 +73,39 @@ object Host {
 }
 
 class Jobs(private val output: (String) -> Unit) {
-    val executor = Executors.newSingleThreadExecutor { task ->
+    // Parallel jobs allow a long dyld transfer without freezing SSH and UI operations.
+    val executor = java.util.concurrent.Executors.newFixedThreadPool(4) { task ->
         Thread(task, "burning-ibridge-worker").also { it.isDaemon = true }
     }
+    data class JobState(val id: Long, val name: String, val state: String, val startedAt: Long, val folder: String)
+    private val sequence = java.util.concurrent.atomic.AtomicLong()
+    private val states = java.util.concurrent.ConcurrentHashMap<Long, JobState>()
+    @Volatile var onJobsChanged: ((List<JobState>) -> Unit)? = null
+    fun snapshot(): List<JobState> = states.values.sortedByDescending { it.id }
+    private fun publish() { onJobsChanged?.invoke(snapshot()) }
+
 
     fun submit(title: String, work: (Path) -> Unit) {
+        val id = sequence.incrementAndGet()
+        states[id] = JobState(id, title, "QUEUED", System.currentTimeMillis(), "")
+        publish()
         executor.execute {
             val dir = Host.newLog(title)
+            states[id] = JobState(id, title, "RUNNING", System.currentTimeMillis(), dir.toString())
+            publish()
             output("▶ " + title + " — logs: " + dir)
             try {
                 work(dir)
+                states[id] = states.getValue(id).copy(state = "SUCCESS")
                 output("✓ Finished: " + title)
             } catch (error: Exception) {
                 Files.writeString(dir.resolve("ERROR.txt"), error.stackTraceToString())
+                states[id] = states.getValue(id).copy(state = "FAILED")
                 output("✗ " + title + ": " + (error.message ?: error.javaClass.simpleName))
+            } finally {
+                // Retain recent history for the activity view.
+                if (states.size > 40) states.keys.sorted().take(states.size - 40).forEach(states::remove)
+                publish()
             }
         }
     }
