@@ -80,7 +80,7 @@ class LogBook(private val changed: () -> Unit = {}) {
             }
             add("activity.log", copyText(channel, query, level))
             add("README.txt", "Burning-iBridge diagnostic bundle.\nIdentifiers, tokens and passwords are best-effort redacted. Inspect before sharing.\n")
-            val dirs = Files.list(Host.logs).use { it.filter(Files::isDirectory).sorted().toList().takeLast(25) }
+            val dirs = Files.list(Host.logs).use { it.filter { dir -> Files.isDirectory(dir) }.sorted().toList().takeLast(25) }
             for (dir in dirs) {
                 Files.walk(dir).use { walk ->
                     walk.filter { Files.isRegularFile(it) && Files.size(it) < 2_000_000 &&
